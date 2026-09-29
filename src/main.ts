@@ -3,26 +3,32 @@ import { Boot } from "./scenes/Boot";
 import { Preload } from "./scenes/Preload";
 import { Level } from "./scenes/Level";
 import { HUD } from "./scenes/HUD";
+import { bindVisualViewport, requestLandscapeFullscreen } from "./layout";
 
 const parent = document.getElementById("game") ?? undefined;
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent,
-  backgroundColor: "#3d6b3a",
-  width: 960,
-  height: 720,
+  backgroundColor: "#8fc86a",
+  width: "100%",
+  height: "100%",
   scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: 960,
-    height: 720,
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.NO_CENTER,
+    width: "100%",
+    height: "100%",
+    resizeInterval: 80,
+    expandParent: true,
+    fullscreenTarget: "game",
   },
   fps: { target: 60, smoothStep: true },
   input: {
     touch: { capture: true },
   },
-  disableContextMenu: true,
+  audio: {
+    disableWebAudio: false,
+  },
   scene: [Boot, Preload, Level, HUD],
 };
 
@@ -60,4 +66,16 @@ function shieldKeys(): void {
 }
 
 shieldKeys();
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+bindVisualViewport(game);
+
+let fullscreenTried = false;
+const tryFs = (): void => {
+  if (fullscreenTried) return;
+  fullscreenTried = true;
+  void requestLandscapeFullscreen();
+  window.removeEventListener("pointerup", tryFs);
+  window.removeEventListener("touchend", tryFs);
+};
+window.addEventListener("pointerup", tryFs, { passive: true });
+window.addEventListener("touchend", tryFs, { passive: true });

@@ -47,7 +47,9 @@ npm run preview
 - 狼状态机：预警 / 巡逻 / 接近 / 蓄力 / 冲刺 / 叼走 / 被挡 / 撤退；叼羊撞墙会松口
 - 进圈判定（位移线段 ∩ 门线）、L1–L3 及文档里的教学节拍、胜负与 1–3 星、重试 / 下一关
 - `PlatformSDK` 空实现（只打日志，第一次输入才 `gameplayStart`，start/stop 去重）
-- 固定 30 Hz 逻辑步、屏幕 `Scale.FIT` + `autoCenter`（不做整关旋转）
+- 固定 30 Hz 逻辑步、屏幕 **`Scale.RESIZE`**：960×720 可玩区在安全区内尽量放大（横屏铺满高度、竖屏铺满宽度），多出来的区域铺草地；HUD 按 CSS 像素贴边并避开 safe-area
+- `visualViewport` 跟随地址栏显隐 / 旋转；第一次抬手尝试 Fullscreen（iOS Safari 不支持则忽略）
+- 音效：GDD §8.7 的 ogg + m4a（Safari 回退），BGM 首次手势后懒加载并循环；HUD 静音按钮会记住状态；切走标签页会暂停
 - 渲染：配置为 `Phaser.AUTO`（有 WebGL 就用 WebGL；本仓库的无 GPU 试玩环境会落到 Canvas）
 - `localStorage` 包在 try/catch 里
 
@@ -57,7 +59,7 @@ npm run preview
 - 道具、升级、羊毛币、地图选关、每日挑战
 - 河 / 桥 / 暴雨 / 狼群冲锋 / 竖屏整关旋转
 - 真实 Poki / CrazyGames SDK
-- 完整音效包与 BGM（用 WebAudio 占位蜂鸣）
+- BGM 快版 / 第 2、3 首（只接了草原平静循环）
 
 ## 调参文件
 
@@ -68,7 +70,9 @@ GDD 里「未定（建议值 X）」一律用建议值。改手感先动这两�
 | §0.2、§3.1、§3.2、§4.2–4.4、§2.4 墨水 / 寿命 | 世界尺寸、逻辑帧率、羊 boids、狼状态机、画线、墨水、篱笆 | `src/data/tuning.json` |
 | §5.1 L1–L3 | 羊数、出生区、漂移、羊圈、墨水、寿命、时限、狼入场、星级、岩石、描红折线 | `src/data/levels.ts` |
 | §2.1 星级公式 | `starsForRate` / `neededForOneStar` | `src/types.ts` |
-| 几何（点到**线段**距离，不是无限直线） | `nearestOnSegment` | `src/sim/geom.ts` |
+| 点到**线段**距离（不是无限直线） | `nearestOnSegment` | `src/sim/geom.ts` |
+| 横竖屏 / 安全区 / HUD 尺寸 | `computeLayout` | `src/layout.ts` |
+| §8.7 音效响度与文件 | `volumeFor` / 清单 | `src/data/audio.json` |
 
 关卡字段可以覆盖墨水与篱笆寿命；群体权重目前走全局 `tuning.json`。
 

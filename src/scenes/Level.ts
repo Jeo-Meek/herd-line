@@ -7,6 +7,7 @@ import { audio } from "../audio/AudioDirector";
 import { recordStars } from "../save/Save";
 import { SHEEP, STEP, WOLF, WOLF_STATE_NAME } from "../types";
 import { lerp } from "../sim/geom";
+import { PLAY_H, PLAY_W, computeLayout, readSafeInsets } from "../layout";
 
 type LevelData = { levelIndex?: number };
 
@@ -26,6 +27,10 @@ export class Level extends Phaser.Scene {
   private particles!: Phaser.GameObjects.Particles.ParticleEmitter;
   private drawingLocked = false;
   private debug = false;
+  private grass!: Phaser.GameObjects.TileSprite;
+  private lastDrawX = 0;
+  private lastDrawY = 0;
+  private lastDrawAt = 0;
 
   constructor() {
     super("Level");
@@ -41,10 +46,12 @@ export class Level extends Phaser.Scene {
     this.drawingLocked = false;
     this.debug = new URLSearchParams(location.search).has("debug");
 
-    this.cameras.main.setBounds(0, 0, level.size[0], level.size[1]);
     this.cameras.main.setBackgroundColor(0x8fc86a);
 
-    this.add.tileSprite(0, 0, level.size[0], level.size[1], "grass").setOrigin(0, 0).setDepth(0);
+    this.grass = this.add.tileSprite(0, 0, PLAY_W, PLAY_H, "grass").setOrigin(0, 0).setDepth(0);
+    this.layoutWorld();
+    this.scale.on("resize", this.layoutWorld, this);
+    this.events.once("shutdown", () => this.scale.off("resize", this.layoutWorld, this));
     for (let i = 0; i < 40; i++) {
       this.add
         .image((i * 137) % 960, (i * 89 + 40) % 700, "flower")
@@ -101,6 +108,19 @@ export class Level extends Phaser.Scene {
     this.input.keyboard?.on("keydown-SPACE", () => this.togglePause());
   }
 
+  private layoutWorld(): void {
+    const layout = computeLayout(this.scale.width, this.scale.height, readSafeInsets());
+    const cam = this.cameras.main;
+    cam.setViewport(0, 0, layout.viewW, layout.viewH);
+    cam.setOrigin(0, 0);
+    cam.setZoom(layout.zoom);
+    cam.setScroll(layout.scrollX, layout.scrollY);
+    if (this.grass) {
+      this.grass.setPosition(layout.grassX, layout.grassY);
+      this.grass.setSize(layout.grassW, layout.grassH);
+    }
+  }
+
   private drawPen(): void {
     const g = this.worldGfx;
     const p = this.match.pen;
@@ -122,6 +142,7 @@ export class Level extends Phaser.Scene {
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       if (p.button === 2) {
         this.match.cancelStroke();
+        audio.drawStop();
         return;
       }
       if (session.match && this.game.registry.get("hud-block")) return;
@@ -129,6 +150,10 @@ export class Level extends Phaser.Scene {
       const started = this.match.beginStroke(p.worldX, p.worldY, p.id, p.wasTouch);
       if (started) {
         this.hand.setVisible(false);
+        audio.drawStart();
+        this.lastDrawX = p.worldX;
+        this.lastDrawY = p.worldY;
+        this.lastDrawAt = this.time.now;
         if (!this.drawingLocked) {
           platform.gameplayStart();
           this.drawingLocked = true;
@@ -138,9 +163,19 @@ export class Level extends Phaser.Scene {
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
       if (!this.match.draw.active || this.match.draw.pointerId !== p.id) return;
       this.match.addStrokePoint(p.worldX, p.worldY);
+      const now = this.time.now;
+      const dt = Math.max(8, now - this.lastDrawAt);
+      const dist = Math.hypot(p.worldX - this.lastDrawX, p.worldY - this.lastDrawY);
+      audio.drawMotion((dist / dt) * 1000);
+      this.lastDrawX = p.worldX;
+      this.lastDrawY = p.worldY;
+      this.lastDrawAt = now;
     });
     const up = (p: Phaser.Input.Pointer) => {
-      if (this.match.draw.pointerId === p.id) this.match.endStroke();
+      if (this.match.draw.pointerId === p.id) {
+        this.match.endStroke();
+        audio.drawStop();
+      }
     };
     this.input.on("pointerup", up);
     this.input.on("pointerupoutside", up);
@@ -152,8 +187,13 @@ export class Level extends Phaser.Scene {
         audio.enter(e.combo);
         this.spawnPlus(e.x, e.y);
         this.flashGate();
+      } else if (e.type === "sheep-startle") {
+        audio.baa("panic");
+      } else if (e.type === "sheep-rescued") {
+        audio.rescue();
       } else if (e.type === "fence-commit") {
         audio.fence();
+        audio.drawStop();
         this.burst(e.x, e.y, 10);
         if (typeof navigator !== "undefined" && this.match.draw.capped) {
           try {
@@ -167,7 +207,12 @@ export class Level extends Phaser.Scene {
         this.burst(e.x, e.y, 14);
       } else if (e.type === "ink-empty") {
         audio.inkEmpty();
+        audio.drawStop();
         this.burst(e.x, e.y, 8);
+      } else if (e.type === "ink-capped") {
+        audio.inkCapped();
+      } else if (e.type === "stroke-rejected") {
+        audio.drawStop();
       } else if (e.type === "wolf-warn") {
         audio.wolfWarn();
         const bang = this.add.image(e.x, e.y, "bang").setDepth(18);
@@ -180,10 +225,16 @@ export class Level extends Phaser.Scene {
           yoyo: true,
           repeat: 3,
         });
+      } else if (e.type === "wolf-windup") {
+        audio.wolfWindup();
       } else if (e.type === "wolf-blocked") {
         audio.wolfHit();
         this.burst(e.x, e.y, 12);
+      } else if (e.type === "wolf-grab") {
+        audio.wolfGrab();
       } else if (e.type === "result") {
+        audio.drawStop();
+        if (!e.win) audio.fail();
         platform.gameplayStop();
         platform.measure?.("level", String(this.match.level.index), e.win ? "complete" : "fail");
         if (e.win) recordStars(this.match.level.id, e.stars);
@@ -204,9 +255,12 @@ export class Level extends Phaser.Scene {
         m.tutorial.nudgeCount = n;
         this.hand.setScale(1.3);
         this.tweens.add({ targets: this.hand, scale: 0.9, duration: 400 });
-        audio.baa();
+        audio.baa("nudge");
       }
     }
+    let free = 0;
+    for (let i = 0; i < m.sheep.n; i++) if (m.sheep.isFree(i)) free++;
+    audio.idleFlock(free);
     if (
       m.level.tutorial === "draw" &&
       m.tutorial.firstFenceAt >= 0 &&
@@ -264,7 +318,10 @@ export class Level extends Phaser.Scene {
   private togglePause(): void {
     if (this.match.outcome !== "playing") return;
     this.match.paused = !this.match.paused;
-    if (this.match.paused) platform.gameplayStop();
+    if (this.match.paused) {
+      platform.gameplayStop();
+      audio.drawStop();
+    }
     else platform.gameplayStart();
     this.game.events.emit("match-pause", this.match.paused);
   }
@@ -351,9 +408,9 @@ export class Level extends Phaser.Scene {
   }
 
   private fenceWidth(): number {
-    const zoom = this.scale.displaySize.width / this.match.level.size[0];
+    const zoom = this.cameras.main.zoom || 1;
     const css = this.match.tuning.fence.minCssPx;
-    return Math.max(this.match.tuning.fence.visualWidthWorld, css / Math.max(0.2, zoom));
+    return Math.max(this.match.tuning.fence.visualWidthWorld, css / zoom);
   }
 
   private syncFences(): void {
@@ -534,8 +591,8 @@ export class Level extends Phaser.Scene {
     const m = this.match;
     const p = this.input.activePointer;
     if (!m.draw.active) return;
-    const zoom = this.scale.displaySize.width / m.level.size[0];
-    const r = m.tuning.draw.tipHaloCssPx / Math.max(0.2, zoom);
+    const zoom = this.cameras.main.zoom || 1;
+    const r = m.tuning.draw.tipHaloCssPx / zoom;
     const frac = m.ink / m.inkMax;
     this.halo.lineStyle(6, 0xffffff, 0.35);
     this.halo.strokeCircle(p.worldX, p.worldY, r);

@@ -83,6 +83,7 @@ export type MatchEvent =
   | { type: "sheep-enter"; index: number; combo: number; x: number; y: number }
   | { type: "sheep-lost"; index: number }
   | { type: "sheep-rescued"; index: number; x: number; y: number }
+  | { type: "sheep-startle"; index: number }
   | { type: "ink-empty"; x: number; y: number }
   | { type: "ink-capped"; x: number; y: number }
   | { type: "fence-commit"; id: number; x: number; y: number }
