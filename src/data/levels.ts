@@ -1,9 +1,9 @@
 import type { LevelDef } from "../types";
 
 const ENTRIES = {
-  E: { x: 948, y: 280 },
-  N: { x: 520, y: 12 },
-  W: { x: 12, y: 280 },
+  E: { x: 900, y: 250 },
+  N: { x: 520, y: 36 },
+  W: { x: 36, y: 250 },
   S: { x: 480, y: 600 },
 };
 

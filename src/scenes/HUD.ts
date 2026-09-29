@@ -46,7 +46,7 @@ export class HUD extends Phaser.Scene {
       .setOrigin(1, 0)
       .setScrollFactor(0);
 
-    this.pauseBtn = this.makeButton(24, 28, 44, 36, "❚❚", () => this.togglePause());
+    this.pauseBtn = this.makeButton(28, 28, 48, 36, "II", () => this.togglePause());
     this.warnArrow = this.add.triangle(480, 18, 0, 18, 12, 0, 24, 18, 0xe23d3d).setVisible(false).setDepth(5);
     this.overlay = this.add.container(0, 0).setDepth(50).setVisible(false);
 

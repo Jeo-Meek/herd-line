@@ -323,12 +323,13 @@ export class Level extends Phaser.Scene {
         spr = this.add.sprite(w.x, w.y, "wolf").setDepth(14);
         this.wolfSprites.set(w.id, spr);
       }
-      const hide = w.state === WOLF.WARN;
+      const hide = false;
       spr.setVisible(!hide);
       const x = lerp(w.px, w.x, a);
       const y = lerp(w.py, w.y, a);
       spr.setPosition(x, y);
       spr.setFlipX(w.vx < 0);
+      spr.setAlpha(w.state === WOLF.WARN ? 0.55 : 1);
       if (w.state === WOLF.WINDUP) spr.setTint(0xff6666);
       else if (w.state === WOLF.BLOCKED) spr.setTint(0xfff27a);
       else spr.clearTint();

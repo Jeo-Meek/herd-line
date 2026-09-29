@@ -48,6 +48,7 @@ npm run preview
 - 进圈判定（位移线段 ∩ 门线）、L1–L3 及文档里的教学节拍、胜负与 1–3 星、重试 / 下一关
 - `PlatformSDK` 空实现（只打日志，第一次输入才 `gameplayStart`，start/stop 去重）
 - 固定 30 Hz 逻辑步、屏幕 `Scale.FIT` + `autoCenter`（不做整关旋转）
+- 渲染：配置为 `Phaser.AUTO`（有 WebGL 就用 WebGL；本仓库的无 GPU 试玩环境会落到 Canvas）
 - `localStorage` 包在 try/catch 里
 
 未做 / 明确砍掉（GDD 第二阶段或后置，或任务说明允许跳过）：

@@ -7,7 +7,7 @@ import { HUD } from "./scenes/HUD";
 const parent = document.getElementById("game") ?? undefined;
 
 const config: Phaser.Types.Core.GameConfig = {
-  type: Phaser.WEBGL,
+  type: Phaser.AUTO,
   parent,
   backgroundColor: "#3d6b3a",
   width: 960,
