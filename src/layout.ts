@@ -206,6 +206,10 @@ export function bindVisualViewport(game: { scale: { refresh: () => void } }): ()
 }
 
 export async function requestLandscapeFullscreen(): Promise<void> {
+  const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+  const shortSide = Math.min(window.innerWidth, window.innerHeight);
+  if (!coarse && shortSide > 500) return;
+
   const doc = document as Document & {
     webkitFullscreenElement?: Element | null;
   };

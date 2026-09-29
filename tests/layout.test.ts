@@ -45,9 +45,11 @@ describe("responsive layout", () => {
     expect(L.hud.countX).toBeLessThanOrEqual(844 - 21);
   });
 
-  it("tablet 1024x768 is nearly 4:3 so the playfield almost fills the canvas", () => {
-    const L = computeLayout(1024, 768);
-    expect(L.playScreenW).toBeGreaterThan(1000);
-    expect(L.playScreenH).toBeGreaterThan(740);
+  it("address-bar 844x310 still fits the full playfield and keeps 44px HUD", () => {
+    const L = computeLayout(844, 310);
+    expect(L.playScreenH).toBeCloseTo(310, 5);
+    expect(L.playScreenW).toBeLessThanOrEqual(844);
+    expect(L.hud.tap).toBe(MIN_TAP_CSS);
+    expect(L.hud.font).toBeGreaterThanOrEqual(MIN_FONT_CSS);
   });
 });
