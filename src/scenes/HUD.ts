@@ -14,6 +14,8 @@ export class HUD extends Phaser.Scene {
   private countText!: Phaser.GameObjects.Text;
   private timeText!: Phaser.GameObjects.Text;
   private pauseBtn!: Phaser.GameObjects.Container;
+  private muteBtn!: Phaser.GameObjects.Container;
+  private muteLabel!: Phaser.GameObjects.Text;
   private overlay!: Phaser.GameObjects.Container;
   private warnArrow!: Phaser.GameObjects.Triangle;
   private showInk = false;
@@ -53,6 +55,7 @@ export class HUD extends Phaser.Scene {
       .setOrigin(1, 0);
 
     this.pauseBtn = this.makeButton(h.pauseX, h.pauseY, h.tap, h.tap, "II", () => this.togglePause());
+    this.muteBtn = this.makeMuteButton(h.muteX, h.muteY, h.tap);
     this.warnArrow = this.add.triangle(h.warnX, h.warnY, 0, 18, 12, 0, 24, 18, 0xe23d3d).setVisible(false).setDepth(5);
     this.overlay = this.add.container(0, 0).setDepth(50).setVisible(false);
 
@@ -100,6 +103,7 @@ export class HUD extends Phaser.Scene {
     this.countText.setPosition(h.countX, h.countY).setFontSize(h.font);
     this.timeText.setPosition(h.timeX, h.timeY).setFontSize(h.smallFont);
     this.pauseBtn.setPosition(h.pauseX, h.pauseY);
+    this.muteBtn.setPosition(h.muteX, h.muteY);
     this.warnArrow.setPosition(h.warnX, h.warnY);
     if (this.overlayMode === "pause") this.drawPause();
     else if (this.overlayMode === "result" && this.lastResult) {
@@ -180,6 +184,31 @@ export class HUD extends Phaser.Scene {
       .setOrigin(0.5);
     this.overlay.add([dim, card, title]);
     this.overlay.add(this.makeButton(h.overlayCx, h.overlayCy + 24, h.btnW, h.btnH, "继续", () => this.togglePause()));
+  }
+
+  private makeMuteButton(x: number, y: number, size: number): Phaser.GameObjects.Container {
+    const bg = this.add.rectangle(0, 0, size, size, 0x3d73c8, 1).setStrokeStyle(2, 0xd6e7ff);
+    this.muteLabel = this.add
+      .text(0, 0, audio.muted ? "静" : "声", {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "18px",
+        color: "#fffef6",
+      })
+      .setOrigin(0.5);
+    const c = this.add.container(x, y, [bg, this.muteLabel]);
+    c.setSize(size, size);
+    c.setInteractive(new Phaser.Geom.Rectangle(-size / 2, -size / 2, size, size), Phaser.Geom.Rectangle.Contains);
+    c.on("pointerover", () => bg.setFillStyle(0x4d86de));
+    c.on("pointerout", () => bg.setFillStyle(0x3d73c8));
+    c.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      this.game.registry.set("hud-block", true);
+      p.event?.stopPropagation?.();
+      audio.unlock();
+      const muted = audio.toggleMute();
+      this.muteLabel.setText(muted ? "静" : "声");
+      if (!muted) audio.click();
+    });
+    return c;
   }
 
   private onResult(e: ResultPayload): void {
@@ -279,6 +308,8 @@ export class HUD extends Phaser.Scene {
     c.on("pointerdown", (p: Phaser.Input.Pointer) => {
       this.game.registry.set("hud-block", true);
       p.event?.stopPropagation?.();
+      audio.unlock();
+      audio.click();
       onClick();
     });
     return c;
@@ -288,6 +319,7 @@ export class HUD extends Phaser.Scene {
     if (this.overlay.visible) return true;
     const tap = this.layout.hud.tap;
     if (Phaser.Math.Distance.Between(x, y, this.pauseBtn.x, this.pauseBtn.y) < tap) return true;
+    if (Phaser.Math.Distance.Between(x, y, this.muteBtn.x, this.muteBtn.y) < tap) return true;
     return false;
   }
 

@@ -182,6 +182,7 @@ export class Match {
         y: this.sheep.y[i],
       });
     }
+    for (const i of sheepResult.startled) this.emit({ type: "sheep-startle", index: i });
 
     const wolfResult = this.wolves.step(dt, this.sheep, this.fences, this.obstacles, this.pen);
     for (const w of wolfResult.windup) this.emit({ type: "wolf-windup", id: w.id });

@@ -26,7 +26,9 @@ const config: Phaser.Types.Core.GameConfig = {
   input: {
     touch: { capture: true },
   },
-  disableContextMenu: true,
+  audio: {
+    disableWebAudio: false,
+  },
   scene: [Boot, Preload, Level, HUD],
 };
 

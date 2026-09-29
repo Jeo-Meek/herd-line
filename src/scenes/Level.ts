@@ -28,6 +28,9 @@ export class Level extends Phaser.Scene {
   private drawingLocked = false;
   private debug = false;
   private grass!: Phaser.GameObjects.TileSprite;
+  private lastDrawX = 0;
+  private lastDrawY = 0;
+  private lastDrawAt = 0;
 
   constructor() {
     super("Level");
@@ -139,6 +142,7 @@ export class Level extends Phaser.Scene {
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       if (p.button === 2) {
         this.match.cancelStroke();
+        audio.drawStop();
         return;
       }
       if (session.match && this.game.registry.get("hud-block")) return;
@@ -146,6 +150,10 @@ export class Level extends Phaser.Scene {
       const started = this.match.beginStroke(p.worldX, p.worldY, p.id, p.wasTouch);
       if (started) {
         this.hand.setVisible(false);
+        audio.drawStart();
+        this.lastDrawX = p.worldX;
+        this.lastDrawY = p.worldY;
+        this.lastDrawAt = this.time.now;
         if (!this.drawingLocked) {
           platform.gameplayStart();
           this.drawingLocked = true;
@@ -155,9 +163,19 @@ export class Level extends Phaser.Scene {
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
       if (!this.match.draw.active || this.match.draw.pointerId !== p.id) return;
       this.match.addStrokePoint(p.worldX, p.worldY);
+      const now = this.time.now;
+      const dt = Math.max(8, now - this.lastDrawAt);
+      const dist = Math.hypot(p.worldX - this.lastDrawX, p.worldY - this.lastDrawY);
+      audio.drawMotion((dist / dt) * 1000);
+      this.lastDrawX = p.worldX;
+      this.lastDrawY = p.worldY;
+      this.lastDrawAt = now;
     });
     const up = (p: Phaser.Input.Pointer) => {
-      if (this.match.draw.pointerId === p.id) this.match.endStroke();
+      if (this.match.draw.pointerId === p.id) {
+        this.match.endStroke();
+        audio.drawStop();
+      }
     };
     this.input.on("pointerup", up);
     this.input.on("pointerupoutside", up);
@@ -169,8 +187,13 @@ export class Level extends Phaser.Scene {
         audio.enter(e.combo);
         this.spawnPlus(e.x, e.y);
         this.flashGate();
+      } else if (e.type === "sheep-startle") {
+        audio.baa("panic");
+      } else if (e.type === "sheep-rescued") {
+        audio.rescue();
       } else if (e.type === "fence-commit") {
         audio.fence();
+        audio.drawStop();
         this.burst(e.x, e.y, 10);
         if (typeof navigator !== "undefined" && this.match.draw.capped) {
           try {
@@ -184,7 +207,12 @@ export class Level extends Phaser.Scene {
         this.burst(e.x, e.y, 14);
       } else if (e.type === "ink-empty") {
         audio.inkEmpty();
+        audio.drawStop();
         this.burst(e.x, e.y, 8);
+      } else if (e.type === "ink-capped") {
+        audio.inkCapped();
+      } else if (e.type === "stroke-rejected") {
+        audio.drawStop();
       } else if (e.type === "wolf-warn") {
         audio.wolfWarn();
         const bang = this.add.image(e.x, e.y, "bang").setDepth(18);
@@ -197,10 +225,16 @@ export class Level extends Phaser.Scene {
           yoyo: true,
           repeat: 3,
         });
+      } else if (e.type === "wolf-windup") {
+        audio.wolfWindup();
       } else if (e.type === "wolf-blocked") {
         audio.wolfHit();
         this.burst(e.x, e.y, 12);
+      } else if (e.type === "wolf-grab") {
+        audio.wolfGrab();
       } else if (e.type === "result") {
+        audio.drawStop();
+        if (!e.win) audio.fail();
         platform.gameplayStop();
         platform.measure?.("level", String(this.match.level.index), e.win ? "complete" : "fail");
         if (e.win) recordStars(this.match.level.id, e.stars);
@@ -221,9 +255,12 @@ export class Level extends Phaser.Scene {
         m.tutorial.nudgeCount = n;
         this.hand.setScale(1.3);
         this.tweens.add({ targets: this.hand, scale: 0.9, duration: 400 });
-        audio.baa();
+        audio.baa("nudge");
       }
     }
+    let free = 0;
+    for (let i = 0; i < m.sheep.n; i++) if (m.sheep.isFree(i)) free++;
+    audio.idleFlock(free);
     if (
       m.level.tutorial === "draw" &&
       m.tutorial.firstFenceAt >= 0 &&
@@ -281,7 +318,10 @@ export class Level extends Phaser.Scene {
   private togglePause(): void {
     if (this.match.outcome !== "playing") return;
     this.match.paused = !this.match.paused;
-    if (this.match.paused) platform.gameplayStop();
+    if (this.match.paused) {
+      platform.gameplayStop();
+      audio.drawStop();
+    }
     else platform.gameplayStart();
     this.game.events.emit("match-pause", this.match.paused);
   }

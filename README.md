@@ -49,6 +49,7 @@ npm run preview
 - `PlatformSDK` 空实现（只打日志，第一次输入才 `gameplayStart`，start/stop 去重）
 - 固定 30 Hz 逻辑步、屏幕 **`Scale.RESIZE`**：960×720 可玩区在安全区内尽量放大（横屏铺满高度、竖屏铺满宽度），多出来的区域铺草地；HUD 按 CSS 像素贴边并避开 safe-area
 - `visualViewport` 跟随地址栏显隐 / 旋转；第一次抬手尝试 Fullscreen（iOS Safari 不支持则忽略）
+- 音效：GDD §8.7 的 ogg + m4a（Safari 回退），BGM 首次手势后懒加载并循环；HUD 静音按钮会记住状态；切走标签页会暂停
 - 渲染：配置为 `Phaser.AUTO`（有 WebGL 就用 WebGL；本仓库的无 GPU 试玩环境会落到 Canvas）
 - `localStorage` 包在 try/catch 里
 
@@ -58,7 +59,7 @@ npm run preview
 - 道具、升级、羊毛币、地图选关、每日挑战
 - 河 / 桥 / 暴雨 / 狼群冲锋 / 竖屏整关旋转
 - 真实 Poki / CrazyGames SDK
-- 完整音效包与 BGM（用 WebAudio 占位蜂鸣）
+- BGM 快版 / 第 2、3 首（只接了草原平静循环）
 
 ## 调参文件
 
@@ -71,6 +72,7 @@ GDD 里「未定（建议值 X）」一律用建议值。改手感先动这两�
 | §2.1 星级公式 | `starsForRate` / `neededForOneStar` | `src/types.ts` |
 | 点到**线段**距离（不是无限直线） | `nearestOnSegment` | `src/sim/geom.ts` |
 | 横竖屏 / 安全区 / HUD 尺寸 | `computeLayout` | `src/layout.ts` |
+| §8.7 音效响度与文件 | `volumeFor` / 清单 | `src/data/audio.json` |
 
 关卡字段可以覆盖墨水与篱笆寿命；群体权重目前走全局 `tuning.json`。
 

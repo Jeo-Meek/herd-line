@@ -36,6 +36,8 @@ export type ViewLayout = {
     titleFont: number;
     pauseX: number;
     pauseY: number;
+    muteX: number;
+    muteY: number;
     inkX: number;
     inkY: number;
     inkW: number;
@@ -109,9 +111,11 @@ export function computeLayout(viewW: number, viewH: number, insets: Insets = ZER
   const titleFont = Math.max(22, Math.round(Math.min(h * 0.08, 32)));
   const pauseX = safeX + pad + tap / 2;
   const pauseY = safeY + pad + tap / 2;
+  const muteX = pauseX + tap + pad;
+  const muteY = pauseY;
   const inkH = 16;
   const inkW = Math.max(120, Math.min(240, safeW * 0.32));
-  const inkX = pauseX + tap / 2 + 10;
+  const inkX = muteX + tap / 2 + 10;
   const inkY = pauseY;
   const countX = safeX + safeW - pad;
   const countY = safeY + pad;
@@ -149,6 +153,8 @@ export function computeLayout(viewW: number, viewH: number, insets: Insets = ZER
       titleFont,
       pauseX,
       pauseY,
+      muteX,
+      muteY,
       inkX,
       inkY,
       inkW,

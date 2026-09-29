@@ -13,6 +13,7 @@ describe("responsive layout", () => {
     expect(L.hud.tap).toBeGreaterThanOrEqual(MIN_TAP_CSS);
     expect(L.hud.font).toBeGreaterThanOrEqual(MIN_FONT_CSS);
     expect(L.hud.pauseX).toBeGreaterThan(20);
+    expect(L.hud.muteX).toBeGreaterThan(L.hud.pauseX + 40);
   });
 
   it("landscape 932x430 and 667x375 also height-fill", () => {
