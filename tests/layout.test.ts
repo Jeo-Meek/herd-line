@@ -52,4 +52,10 @@ describe("responsive layout", () => {
     expect(L.hud.tap).toBe(MIN_TAP_CSS);
     expect(L.hud.font).toBeGreaterThanOrEqual(MIN_FONT_CSS);
   });
+
+  it("tablet 1024x768 is nearly 4:3 so the playfield almost fills the canvas", () => {
+    const L = computeLayout(1024, 768);
+    expect(L.playScreenW).toBeGreaterThan(1000);
+    expect(L.playScreenH).toBeGreaterThan(740);
+  });
 });
