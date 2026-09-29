@@ -4,6 +4,9 @@ import { audio } from "../audio/AudioDirector";
 import { session } from "../session";
 import type { Match } from "../sim/Match";
 import { LEVELS } from "../data/levels";
+import { computeLayout, readSafeInsets, type ViewLayout } from "../layout";
+
+type ResultPayload = { win: boolean; stars: number; reason: string };
 
 export class HUD extends Phaser.Scene {
   private inkBg!: Phaser.GameObjects.Rectangle;
@@ -14,7 +17,9 @@ export class HUD extends Phaser.Scene {
   private overlay!: Phaser.GameObjects.Container;
   private warnArrow!: Phaser.GameObjects.Triangle;
   private showInk = false;
-  private lastTick = false;
+  private layout!: ViewLayout;
+  private lastResult: ResultPayload | null = null;
+  private overlayMode: "none" | "pause" | "result" = "none";
 
   constructor() {
     super("HUD");
@@ -22,32 +27,33 @@ export class HUD extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor("rgba(0,0,0,0)");
-    const w = 960;
-    this.inkBg = this.add.rectangle(56, 28, 220, 18, 0x1f2a1c, 0.55).setOrigin(0, 0.5).setScrollFactor(0);
-    this.inkFill = this.add.rectangle(58, 28, 216, 14, 0xf4c95d, 1).setOrigin(0, 0.5).setScrollFactor(0);
+    this.layout = computeLayout(this.scale.width, this.scale.height, readSafeInsets());
+    this.applyHudCamera();
+
+    const h = this.layout.hud;
+    this.inkBg = this.add.rectangle(h.inkX, h.inkY, h.inkW, h.inkH + 4, 0x1f2a1c, 0.55).setOrigin(0, 0.5);
+    this.inkFill = this.add.rectangle(h.inkX + 2, h.inkY, h.inkW - 4, h.inkH, 0xf4c95d, 1).setOrigin(0, 0.5);
     this.countText = this.add
-      .text(w - 24, 18, "0/0", {
+      .text(h.countX, h.countY, "0/0", {
         fontFamily: "system-ui, sans-serif",
-        fontSize: "22px",
+        fontSize: `${h.font}px`,
         color: "#fffef6",
         stroke: "#2a2418",
         strokeThickness: 5,
       })
-      .setOrigin(1, 0)
-      .setScrollFactor(0);
+      .setOrigin(1, 0);
     this.timeText = this.add
-      .text(w - 24, 44, "", {
+      .text(h.timeX, h.timeY, "", {
         fontFamily: "system-ui, sans-serif",
-        fontSize: "18px",
+        fontSize: `${h.smallFont}px`,
         color: "#fffef6",
         stroke: "#2a2418",
         strokeThickness: 4,
       })
-      .setOrigin(1, 0)
-      .setScrollFactor(0);
+      .setOrigin(1, 0);
 
-    this.pauseBtn = this.makeButton(28, 28, 48, 36, "II", () => this.togglePause());
-    this.warnArrow = this.add.triangle(480, 18, 0, 18, 12, 0, 24, 18, 0xe23d3d).setVisible(false).setDepth(5);
+    this.pauseBtn = this.makeButton(h.pauseX, h.pauseY, h.tap, h.tap, "II", () => this.togglePause());
+    this.warnArrow = this.add.triangle(h.warnX, h.warnY, 0, 18, 12, 0, 24, 18, 0xe23d3d).setVisible(false).setDepth(5);
     this.overlay = this.add.container(0, 0).setDepth(50).setVisible(false);
 
     this.showInk = false;
@@ -61,9 +67,14 @@ export class HUD extends Phaser.Scene {
     });
     this.game.events.on("match-pause", (paused: boolean) => {
       if (paused && session.match?.outcome === "playing") this.drawPause();
-      else if (!this.resultVisible()) this.overlay.setVisible(false);
+      else if (!this.resultVisible()) {
+        this.overlayMode = "none";
+        this.overlay.setVisible(false).removeAll(true);
+      }
     });
     this.game.events.on("match-frame", () => this.refresh());
+    this.scale.on("resize", this.onResize, this);
+    this.events.once("shutdown", () => this.scale.off("resize", this.onResize, this));
 
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       const overUi = this.hitUI(p.x, p.y);
@@ -72,20 +83,47 @@ export class HUD extends Phaser.Scene {
     this.input.on("pointerup", () => this.game.registry.set("hud-block", false));
   }
 
+  private applyHudCamera(): void {
+    const cam = this.cameras.main;
+    cam.setViewport(0, 0, this.layout.viewW, this.layout.viewH);
+    cam.setOrigin(0, 0);
+    cam.setZoom(1);
+    cam.setScroll(0, 0);
+  }
+
+  private onResize(): void {
+    this.layout = computeLayout(this.scale.width, this.scale.height, readSafeInsets());
+    this.applyHudCamera();
+    const h = this.layout.hud;
+    this.inkBg.setPosition(h.inkX, h.inkY).setSize(h.inkW, h.inkH + 4);
+    this.inkFill.setPosition(h.inkX + 2, h.inkY);
+    this.countText.setPosition(h.countX, h.countY).setFontSize(h.font);
+    this.timeText.setPosition(h.timeX, h.timeY).setFontSize(h.smallFont);
+    this.pauseBtn.setPosition(h.pauseX, h.pauseY);
+    this.warnArrow.setPosition(h.warnX, h.warnY);
+    if (this.overlayMode === "pause") this.drawPause();
+    else if (this.overlayMode === "result" && this.lastResult) {
+      this.drawResult(this.lastResult.win, this.lastResult.stars, this.lastResult.reason);
+    }
+  }
+
   private onMatchReady(match: Match): void {
     this.overlay.setVisible(false).removeAll(true);
+    this.overlayMode = "none";
+    this.lastResult = null;
     this.showInk = match.level.tutorial !== "draw";
-    this.lastTick = false;
+    this.onResize();
     this.refresh();
   }
 
   private refresh(): void {
     const m = session.match;
     if (!m) return;
+    const h = this.layout.hud;
     const inkOn = this.showInk || m.tutorial.firstInput;
     this.inkBg.setVisible(inkOn);
     this.inkFill.setVisible(inkOn);
-    this.inkFill.width = 216 * (m.ink / Math.max(1, m.inkMax));
+    this.inkFill.width = (h.inkW - 4) * (m.ink / Math.max(1, m.inkMax));
     this.inkFill.fillColor = m.ink / m.inkMax < 0.2 ? 0xe07a3d : 0xf4c95d;
     this.countText.setText(`${m.sheep.penned}/${m.sheep.n}`);
     if (m.level.timeLimit !== null) {
@@ -95,12 +133,7 @@ export class HUD extends Phaser.Scene {
       this.timeText.setText(`${mm}:${ss.toString().padStart(2, "0")}`);
       this.timeText.setColor(left <= 10 ? "#ff6b6b" : "#fffef6");
       if (left <= 10 && m.outcome === "playing") {
-        const k = Math.floor(left);
-        if (!this.lastTick && k !== Math.floor(left + 0.05)) {
-          /* tick handled below */
-        }
         if (Math.floor(m.time * 2) !== Math.floor((m.time - 1 / 30) * 2)) audio.tick();
-        this.lastTick = true;
       }
     } else {
       this.timeText.setText("");
@@ -108,9 +141,8 @@ export class HUD extends Phaser.Scene {
     const warn = m.wolves.wolves.find((w) => w.state === 1);
     if (warn) {
       this.warnArrow.setVisible(true);
-      const cx = 480;
       const dir = warn.entryX < 200 ? -1 : warn.entryX > 760 ? 1 : 0;
-      this.warnArrow.setPosition(cx + dir * 80, 16);
+      this.warnArrow.setPosition(h.warnX + dir * 48, h.warnY);
       this.warnArrow.setRotation(dir < 0 ? Math.PI / 2 : dir > 0 ? -Math.PI / 2 : 0);
     } else {
       this.warnArrow.setVisible(false);
@@ -118,7 +150,6 @@ export class HUD extends Phaser.Scene {
   }
 
   private togglePause(): void {
-    const level = this.scene.get("Level") as Phaser.Scene & { match?: Match };
     const m = session.match;
     if (!m || m.outcome !== "playing") return;
     m.paused = !m.paused;
@@ -127,51 +158,63 @@ export class HUD extends Phaser.Scene {
       this.drawPause();
     } else {
       platform.gameplayStart();
+      this.overlayMode = "none";
       this.overlay.setVisible(false).removeAll(true);
     }
-    void level;
   }
 
   private drawPause(): void {
+    this.overlayMode = "pause";
     this.overlay.setVisible(true).removeAll(true);
-    const dim = this.add.rectangle(480, 360, 960, 720, 0x000000, 0.45);
-    const card = this.add.rectangle(480, 340, 320, 180, 0x24331f, 0.95).setStrokeStyle(3, 0xf4c95d);
+    const h = this.layout.hud;
+    const dim = this.add.rectangle(h.overlayCx, h.overlayCy, this.layout.viewW, this.layout.viewH, 0x000000, 0.45);
+    const card = this.add
+      .rectangle(h.overlayCx, h.overlayCy, h.overlayW, 180, 0x24331f, 0.95)
+      .setStrokeStyle(3, 0xf4c95d);
     const title = this.add
-      .text(480, 290, "暂停", { fontFamily: "system-ui, sans-serif", fontSize: "28px", color: "#fffef6" })
+      .text(h.overlayCx, h.overlayCy - 50, "暂停", {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: `${h.titleFont}px`,
+        color: "#fffef6",
+      })
       .setOrigin(0.5);
     this.overlay.add([dim, card, title]);
-    this.overlay.add(this.makeButton(480, 360, 200, 44, "继续", () => this.togglePause()));
+    this.overlay.add(this.makeButton(h.overlayCx, h.overlayCy + 24, h.btnW, h.btnH, "继续", () => this.togglePause()));
   }
 
-  private onResult(e: { win: boolean; stars: number; reason: string }): void {
-    const m = session.match;
-    if (!m) return;
+  private onResult(e: ResultPayload): void {
+    this.lastResult = e;
     this.time.delayedCall(250, () => this.drawResult(e.win, e.stars, e.reason));
   }
 
   private drawResult(win: boolean, stars: number, reason: string): void {
+    this.overlayMode = "result";
     this.overlay.setVisible(true).removeAll(true);
-    const dim = this.add.rectangle(480, 360, 960, 720, 0x000000, 0.5);
-    const card = this.add.rectangle(480, 340, 420, 340, 0x2b3a24, 0.96).setStrokeStyle(4, win ? 0xf4c95d : 0xc45c4a);
+    const h = this.layout.hud;
+    const dim = this.add.rectangle(h.overlayCx, h.overlayCy, this.layout.viewW, this.layout.viewH, 0x000000, 0.5);
+    const cardH = Math.min(340, this.layout.viewH - 32);
+    const card = this.add
+      .rectangle(h.overlayCx, h.overlayCy, h.overlayW, cardH, 0x2b3a24, 0.96)
+      .setStrokeStyle(4, win ? 0xf4c95d : 0xc45c4a);
     const title = this.add
-      .text(480, 210, win ? "赶进去了" : reason === "f2" ? "羊不够了" : "时间到", {
+      .text(h.overlayCx, h.overlayCy - cardH / 2 + 40, win ? "赶进去了" : reason === "f2" ? "羊不够了" : "时间到", {
         fontFamily: "system-ui, sans-serif",
-        fontSize: "32px",
+        fontSize: `${h.titleFont}px`,
         color: "#fffef6",
       })
       .setOrigin(0.5);
     const m = session.match!;
     const stats = this.add
-      .text(480, 258, `${m.sheep.penned} / ${m.sheep.n}`, {
+      .text(h.overlayCx, h.overlayCy - cardH / 2 + 78, `${m.sheep.penned} / ${m.sheep.n}`, {
         fontFamily: "system-ui, sans-serif",
-        fontSize: "22px",
+        fontSize: `${h.font}px`,
         color: "#f4c95d",
       })
       .setOrigin(0.5);
     this.overlay.add([dim, card, title, stats]);
     for (let i = 0; i < 3; i++) {
       const star = this.add
-        .text(400 + i * 80, 300, i < stars ? "★" : "☆", {
+        .text(h.overlayCx + (i - 1) * 64, h.overlayCy - 20, i < stars ? "★" : "☆", {
           fontFamily: "system-ui, sans-serif",
           fontSize: "40px",
           color: i < stars ? "#ffd56a" : "#6b6658",
@@ -190,19 +233,28 @@ export class HUD extends Phaser.Scene {
         },
       });
     }
-    const retry = this.makeButton(480, 380, 280, 48, "重试", () => this.startLevel(session.levelIndex));
+    const retry = this.makeButton(h.overlayCx, h.overlayCy + 70, h.btnW, h.btnH, "重试", () =>
+      this.startLevel(session.levelIndex),
+    );
     this.overlay.add(retry);
     const nextIndex = session.levelIndex + 1;
     const hasNext = LEVELS.some((l) => l.index === nextIndex);
     if (win && hasNext) {
-      this.overlay.add(this.makeButton(480, 440, 280, 48, "下一关", () => this.startLevel(nextIndex)));
+      this.overlay.add(
+        this.makeButton(h.overlayCx, h.overlayCy + 70 + h.btnH + 12, h.btnW, h.btnH, "下一关", () =>
+          this.startLevel(nextIndex),
+        ),
+      );
     } else if (win) {
-      this.overlay.add(this.makeButton(480, 440, 280, 48, "再来一局", () => this.startLevel(1)));
+      this.overlay.add(
+        this.makeButton(h.overlayCx, h.overlayCy + 70 + h.btnH + 12, h.btnW, h.btnH, "再来一局", () => this.startLevel(1)),
+      );
     }
   }
 
   private async startLevel(index: number): Promise<void> {
     this.overlay.setVisible(false).removeAll(true);
+    this.overlayMode = "none";
     await platform.midgame();
     session.levelIndex = index;
     const levelScene = this.scene.get("Level");
@@ -210,11 +262,12 @@ export class HUD extends Phaser.Scene {
   }
 
   private makeButton(x: number, y: number, w: number, h: number, label: string, onClick: () => void): Phaser.GameObjects.Container {
+    const font = this.layout?.hud.font ?? 18;
     const bg = this.add.rectangle(0, 0, w, h, 0x3d73c8, 1).setStrokeStyle(2, 0xd6e7ff);
     const text = this.add
       .text(0, 0, label, {
         fontFamily: "system-ui, sans-serif",
-        fontSize: "20px",
+        fontSize: `${Math.max(16, font)}px`,
         color: "#fffef6",
       })
       .setOrigin(0.5);
@@ -233,7 +286,8 @@ export class HUD extends Phaser.Scene {
 
   private hitUI(x: number, y: number): boolean {
     if (this.overlay.visible) return true;
-    if (Phaser.Math.Distance.Between(x, y, this.pauseBtn.x, this.pauseBtn.y) < 40) return true;
+    const tap = this.layout.hud.tap;
+    if (Phaser.Math.Distance.Between(x, y, this.pauseBtn.x, this.pauseBtn.y) < tap) return true;
     return false;
   }
 

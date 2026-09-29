@@ -7,6 +7,7 @@ import { audio } from "../audio/AudioDirector";
 import { recordStars } from "../save/Save";
 import { SHEEP, STEP, WOLF, WOLF_STATE_NAME } from "../types";
 import { lerp } from "../sim/geom";
+import { PLAY_H, PLAY_W, computeLayout, readSafeInsets } from "../layout";
 
 type LevelData = { levelIndex?: number };
 
@@ -26,6 +27,7 @@ export class Level extends Phaser.Scene {
   private particles!: Phaser.GameObjects.Particles.ParticleEmitter;
   private drawingLocked = false;
   private debug = false;
+  private grass!: Phaser.GameObjects.TileSprite;
 
   constructor() {
     super("Level");
@@ -41,10 +43,12 @@ export class Level extends Phaser.Scene {
     this.drawingLocked = false;
     this.debug = new URLSearchParams(location.search).has("debug");
 
-    this.cameras.main.setBounds(0, 0, level.size[0], level.size[1]);
     this.cameras.main.setBackgroundColor(0x8fc86a);
 
-    this.add.tileSprite(0, 0, level.size[0], level.size[1], "grass").setOrigin(0, 0).setDepth(0);
+    this.grass = this.add.tileSprite(0, 0, PLAY_W, PLAY_H, "grass").setOrigin(0, 0).setDepth(0);
+    this.layoutWorld();
+    this.scale.on("resize", this.layoutWorld, this);
+    this.events.once("shutdown", () => this.scale.off("resize", this.layoutWorld, this));
     for (let i = 0; i < 40; i++) {
       this.add
         .image((i * 137) % 960, (i * 89 + 40) % 700, "flower")
@@ -99,6 +103,19 @@ export class Level extends Phaser.Scene {
 
     this.input.keyboard?.on("keydown-P", () => this.togglePause());
     this.input.keyboard?.on("keydown-SPACE", () => this.togglePause());
+  }
+
+  private layoutWorld(): void {
+    const layout = computeLayout(this.scale.width, this.scale.height, readSafeInsets());
+    const cam = this.cameras.main;
+    cam.setViewport(0, 0, layout.viewW, layout.viewH);
+    cam.setOrigin(0, 0);
+    cam.setZoom(layout.zoom);
+    cam.setScroll(layout.scrollX, layout.scrollY);
+    if (this.grass) {
+      this.grass.setPosition(layout.grassX, layout.grassY);
+      this.grass.setSize(layout.grassW, layout.grassH);
+    }
   }
 
   private drawPen(): void {
@@ -351,9 +368,9 @@ export class Level extends Phaser.Scene {
   }
 
   private fenceWidth(): number {
-    const zoom = this.scale.displaySize.width / this.match.level.size[0];
+    const zoom = this.cameras.main.zoom || 1;
     const css = this.match.tuning.fence.minCssPx;
-    return Math.max(this.match.tuning.fence.visualWidthWorld, css / Math.max(0.2, zoom));
+    return Math.max(this.match.tuning.fence.visualWidthWorld, css / zoom);
   }
 
   private syncFences(): void {
@@ -534,8 +551,8 @@ export class Level extends Phaser.Scene {
     const m = this.match;
     const p = this.input.activePointer;
     if (!m.draw.active) return;
-    const zoom = this.scale.displaySize.width / m.level.size[0];
-    const r = m.tuning.draw.tipHaloCssPx / Math.max(0.2, zoom);
+    const zoom = this.cameras.main.zoom || 1;
+    const r = m.tuning.draw.tipHaloCssPx / zoom;
     const frac = m.ink / m.inkMax;
     this.halo.lineStyle(6, 0xffffff, 0.35);
     this.halo.strokeCircle(p.worldX, p.worldY, r);
