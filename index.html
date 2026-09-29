@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>赶羊线 Herd Line</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #3d6b3a;
+        touch-action: none;
+        position: fixed;
+        inset: 0;
+        overscroll-behavior: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      #game {
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+      canvas {
+        display: block;
+        touch-action: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
