@@ -180,14 +180,21 @@ export class AudioDirector {
       return;
     }
     if (this.bgmLoading) return;
-    const scene = this.game.scene.getScenes(true)[0];
+    const scene =
+      this.game.scene.getScene("HUD") ||
+      this.game.scene.getScene("Level") ||
+      this.game.scene.getScenes(true)[0];
     if (!scene) return;
     this.bgmLoading = true;
-    scene.load.audio(catalog.bgm, audioUrls(catalog.bgm));
-    scene.load.once("complete", () => {
+    const onDone = (): void => {
       this.bgmLoading = false;
       this.playBgm();
+    };
+    scene.load.once("complete", onDone);
+    scene.load.once("loaderror", () => {
+      this.bgmLoading = false;
     });
+    scene.load.audio(catalog.bgm, audioUrls(catalog.bgm));
     scene.load.start();
   }
 
